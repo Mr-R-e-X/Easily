@@ -66,7 +66,7 @@ const userSchema = new Schema(
       type: String,
       default: "",
     },
-    address: {
+    currentlyWorkingAt: {
       type: String,
       default: "",
     },
@@ -80,6 +80,10 @@ const userSchema = new Schema(
     },
     education: {
       type: [educationSchema],
+      default: "",
+    },
+    address: {
+      type: String,
       default: "",
     },
     savedJobs: [
