@@ -1,0 +1,43 @@
+{
+  "name": "easily",
+  "version": "1.0.0",
+  "description": "a job explorer app",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon  src/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mr-R-e-X/Easily.git"
+  },
+  "author": "Souvik Hazra",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Mr-R-e-X/Easily/issues"
+  },
+  "homepage": "https://github.com/Mr-R-e-X/Easily#readme",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "body-parser": "^1.20.2",
+    "cloudinary": "^2.3.1",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "express-validator": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "logger": "^0.0.1",
+    "mongoose": "^8.5.1",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.14",
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.13.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "prettier": "^3.3.3"
+  }
+}
