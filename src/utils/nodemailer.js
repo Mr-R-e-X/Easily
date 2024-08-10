@@ -11,27 +11,18 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-async function sendMailFunction(userMail, emailSubject, emailBody) {
+export async function sendMailFunction(userMail, emailSubject, emailBody) {
   try {
     const mailOptions = {
       from: process.env.SMTP_EMAIL,
       to: userMail,
       subject: emailSubject,
-      HTML: emailBody,
+      html: emailBody,
     };
-    transporter.sendMail(mailOpts, (err, info) => {
-      if (err) {
-        console.error("Error sending email: ", err);
-        return new ApiError(
-          400,
-          err.message || "Something went wrong while sending email"
-        );
-      } else {
-        console.log("Mail sent successfully: " + info.response);
-        return new ApiResponse(200, info.response, "Email sent successfully");
-      }
-    });
-
-    return;
-  } catch (error) {}
+    const info = await transporter.sendMail(mailOptions);
+    return info.response;
+  } catch (error) {
+    console.error("Error sending email: ", error);
+    throw new ApiError(500, "Something went wrong while sending email");
+  }
 }
