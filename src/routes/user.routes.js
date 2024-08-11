@@ -33,5 +33,23 @@ router.route("/login").post(login);
 
 //Protedcted Route
 router.route("/send-verification-mail").post(verifyJWT, sendVerificationEmail);
-router.route("/verify-email").post(verifyJWT, verifyEmailOTP);
+router.route("/verify-email").patch(verifyJWT, verifyEmailOTP);
+router.route("/update-profile-details").patch(
+  verifyJWT,
+  upload.fields([
+    {
+      name: "avatar",
+      maxCount: 1,
+    },
+    {
+      name: "coverImage",
+      maxCount: 1,
+    },
+    {
+      name: "resume",
+      maxCount: 1,
+    },
+  ]),
+  updateUserDetails
+);
 export default router;

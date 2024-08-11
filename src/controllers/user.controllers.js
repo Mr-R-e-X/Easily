@@ -1,13 +1,16 @@
+import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadDataInCloudinary } from "../utils/cloudinary.js";
+import {
+  destroyFromCloudinary,
+  uploadDataInCloudinary,
+} from "../utils/cloudinary.js";
 import { COOKIE_OPTIONS } from "../utils/constants.js";
 import { generateRandomOtp } from "../utils/generateOtp.js";
 import { UserOTP } from "../models/userOtp.model.js";
 import { sendMailFunction } from "../utils/nodemailer.js";
-import mongoose from "mongoose";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -161,7 +164,86 @@ const forgotPassword = asyncHandler(async (req, res) => {});
 
 const updatePassword = asyncHandler(async (req, res) => {});
 
-const updateUserDetails = asyncHandler(async (req, res) => {});
+const updateUserDetails = asyncHandler(async (req, res) => {
+  const { name, bio, experience, education, currentlyWorkingAt, address } =
+    req.body;
+  console.log(education);
+  let updates = {};
+  if (name && name.trim() !== "") updates.name = name;
+  if (bio && bio.trim() !== "") updates.bio = bio;
+  if (currentlyWorkingAt && currentlyWorkingAt.trim() !== "")
+    updates.currentlyWorkingAt = currentlyWorkingAt;
+  if (address && address.trim() !== "") updates.address = address;
+
+  if (education && Array.isArray(education) && education.length > 0) {
+    updates.$push = { education: { $each: education } };
+  }
+  if (experience && Array.isArray(experience) && experience.length > 0) {
+    updates.$push = { experience: { $each: experience } };
+  }
+  const user = await User.findById(req.user._id);
+  let newAvatarCloudinaryPath;
+  let newCoverImageCloudinaryPath;
+  let newResumeCloudinaryPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.avatar) &&
+    req.files.avatar.length > 0
+  ) {
+    if (user.avatar.length > 0) await destroyFromCloudinary(user.avatar);
+    let newAvatarLocalFilePath = req.files.avatar[0].path;
+    newAvatarCloudinaryPath = await uploadDataInCloudinary(
+      newAvatarLocalFilePath
+    );
+  }
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    if (user.coverImage.length > 0)
+      await destroyFromCloudinary(user.coverImage);
+    let newCoverImageLocalFilePath = req.files.coverImage[0].path;
+    newCoverImageCloudinaryPath = await uploadDataInCloudinary(
+      newCoverImageLocalFilePath
+    );
+  }
+  if (
+    req.files &&
+    Array.isArray(req.files.resume) &&
+    req.files.resume.length > 0
+  ) {
+    if (user.resume.length > 0) await destroyFromCloudinary(user.resume);
+    let newResumeLocalFilePath = req.files.resume[0].path;
+    newResumeCloudinaryPath = await uploadDataInCloudinary(
+      newResumeLocalFilePath
+    );
+  }
+
+  if (newAvatarCloudinaryPath !== undefined)
+    updates.avatar = newAvatarCloudinaryPath.url;
+
+  if (newCoverImageCloudinaryPath !== undefined)
+    updates.coverImage = newCoverImageCloudinaryPath.url;
+
+  if (newResumeCloudinaryPath !== undefined)
+    updates.resume = newResumeCloudinaryPath.url;
+  // console.log(updates);
+  if (Object.keys(updates).length == 0) {
+    throw new ApiError(400, "Invalid Updates");
+  }
+  const updatedUser = await User.findByIdAndUpdate(
+    { _id: req.user?._id },
+    updates,
+    { new: true }
+  ).select(
+    "-password -resume  -savedJobs -appliedJobs -givenRatingsAndReviews -refreshToken"
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, updatedUser, "User updated successfully"));
+});
 
 const logout = asyncHandler(async (req, res) => {});
 

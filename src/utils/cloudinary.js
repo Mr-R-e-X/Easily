@@ -22,3 +22,18 @@ export async function uploadDataInCloudinary(filePath) {
     return null;
   }
 }
+
+export async function destroyFromCloudinary(filePath) {
+  try {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+    if (!filePath) return null;
+    let data = await cloudinary.uploader.destroy(filePath, (res) => {
+      console.log(res);
+    });
+    console.log(data);
+  } catch (error) {}
+}

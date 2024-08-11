@@ -5,32 +5,43 @@ import jwt from "jsonwebtoken";
 const experienceSchema = new Schema({
   companyName: {
     type: String,
-    required: true,
   },
   designation: {
     type: String,
-    required: true,
   },
   dateOfJoining: {
     type: String,
-    required: true,
   },
   dateOfEnding: {
     type: String,
-    required: true,
   },
 });
 const educationSchema = new Schema({
   degree: {
     type: String,
-    required: true,
   },
   institution: {
     type: String,
+  },
+  yearOfPassing: {
+    type: Number,
+  },
+});
+
+const reviewSchema = new Schema({
+  company: {
+    type: Schema.Types.ObjectId,
+    ref: "Company",
     required: true,
   },
-  yearOfPasing: {
+  rating: {
     type: Number,
+    min: 1,
+    max: 5,
+    required: true,
+  },
+  review: {
+    type: String,
     required: true,
   },
 });
@@ -72,7 +83,7 @@ const userSchema = new Schema(
     },
     experience: {
       type: [experienceSchema],
-      default: "",
+      default: [],
     },
     bio: {
       type: String,
@@ -80,7 +91,7 @@ const userSchema = new Schema(
     },
     education: {
       type: [educationSchema],
-      default: "",
+      default: [],
     },
     address: {
       type: String,
@@ -98,22 +109,10 @@ const userSchema = new Schema(
         ref: "Job",
       },
     ],
-    givenRatingsAndReviews: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Company",
-        rating: {
-          type: Number,
-          min: 1,
-          max: 5,
-          required: true,
-        },
-        review: {
-          type: String,
-          required: true,
-        },
-      },
-    ],
+    givenRatingsAndReviews: {
+      type: [reviewSchema],
+      default: [],
+    },
     refreshToken: {
       type: String,
       default: "",
