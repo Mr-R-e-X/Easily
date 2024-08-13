@@ -103,12 +103,6 @@ const userSchema = new Schema(
         ref: "Job",
       },
     ],
-    appliedJobs: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Job",
-      },
-    ],
     givenRatingsAndReviews: {
       type: [reviewSchema],
       default: [],

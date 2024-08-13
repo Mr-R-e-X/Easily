@@ -45,10 +45,6 @@ const jobSchema = new Schema(
       type: Number,
       required: true,
     },
-    applicantList: {
-      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
-      default: [],
-    },
     status: {
       type: String,
       default: "open",

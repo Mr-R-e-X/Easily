@@ -1,7 +1,13 @@
+// import from external package
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+// import from model
 import { User } from "../models/user.model.js";
 import { Company } from "../models/company.model.js";
+import { Job } from "../models/jobs.model.js";
+import { Application } from "../models/application.model.js";
+import { UserOTP } from "../models/userOtp.model.js";
+// import from utils
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -11,7 +17,6 @@ import {
 } from "../utils/cloudinary.js";
 import { COOKIE_OPTIONS } from "../utils/constants.js";
 import { generateRandomOtp } from "../utils/generateOtp.js";
-import { UserOTP } from "../models/userOtp.model.js";
 import { sendMailFunction } from "../utils/nodemailer.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
@@ -170,7 +175,9 @@ const updateUserPassword = asyncHandler(async (req, res) => {
   if (!isPasswordValid) throw new ApiError(401, "Invalid Old Password");
   user.password = newPassword;
   await user.save({ validateBeforeSave: false });
-  return res.status(200).json(200, {}, "Password Changed Sucessfully");
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password Changed Sucessfully"));
 });
 
 const updateUserDetails = asyncHandler(async (req, res) => {
@@ -267,6 +274,58 @@ const logout = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "User logged out successfully!"));
 });
 
+const applyForJob = asyncHandler(async (req, res) => {
+  const { jobId } = req.body;
+  const checkForJob = await Job.findById(jobId);
+  if (!checkForJob) throw new ApiError(400, "Job not found");
+  const user = await User.findById(req.user?._id);
+  const applicatonDtls = { jobId, candidateId: user._id };
+  let application = await Application.findOne(applicatonDtls);
+  if (!application) {
+    await Application.create({
+      $set: {
+        jobId,
+        candidateId: user._id,
+        resumeLink: user.resume,
+      },
+    });
+    return res
+      .status(200)
+      .json(new ApiResponse(200, {}, "Successfully Applied for the Job!"));
+  }
+  return res
+    .status(200)
+    .json(new ApiResponse(409, {}, "Already applied for the Job!"));
+});
+
+const savedJobs = asyncHandler(async (req, res) => {
+  const { jobId } = req.body;
+  const jobDtls = await Job.findById(jobId);
+  if (!jobDtls) throw new ApiError(404, "Job not found");
+  const user = await User.findByIdAndUpdate(req.user?._id, {
+    $push: {
+      savedJobs: jobDtls._id,
+    },
+  }).select("-password -refreshToken");
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Job Successfully svaed for future"));
+});
+
+const removeJobFromSavedJob = asyncHandler(async (req, res) => {
+  const { jobId } = req.body;
+  const jobDtls = await Job.findById(jobId);
+  if (!jobDtls) throw new ApiError(404, "Job not found");
+  const user = await User.findByIdAndUpdate(req.user?._id, {
+    $pull: {
+      savedJobs: jobDtls._id,
+    },
+  }).select("-password -refreshToken");
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Job removed from saved jobs"));
+});
+
 const giveCompanyRatingAndReview = asyncHandler(async (req, res) => {
   const { comapanyId, rating, review } = req.body;
   if (!comapanyId || !rating || !review)
@@ -303,7 +362,7 @@ const giveCompanyRatingAndReview = asyncHandler(async (req, res) => {
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
-    res.cookies.refreshToken || req.body.refreshToken;
+    req.cookies.refreshToken || req.body.refreshToken;
   if (!incomingRefreshToken) throw new ApiError(404, "Unauthorized Request");
   try {
     const decodedRefreshToken = jwt.verify(
@@ -339,4 +398,7 @@ export {
   logout,
   giveCompanyRatingAndReview,
   refreshAccessToken,
+  applyForJob,
+  savedJobs,
+  removeJobFromSavedJob,
 };

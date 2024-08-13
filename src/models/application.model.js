@@ -10,6 +10,10 @@ const applicationSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    resumeLink: {
+      type: String,
+      required: true,
+    },
   },
   { timestamps: true }
 );

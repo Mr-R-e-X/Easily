@@ -22,7 +22,9 @@ app.get("/", (req, res) => {
 });
 
 import userRouter from "./routes/user.routes.js";
+import companyRouter from "./routes/company.routes.js";
 
 app.use("/api/user", userRouter);
+app.use("/api/company", companyRouter);
 
 export default app;

@@ -9,11 +9,9 @@ const ratingsAndReviewsSchema = new Schema({
     type: Number,
     min: 1,
     max: 5,
-    required: true,
   },
   review: {
     type: String,
-    required: true,
   },
 });
 
@@ -22,6 +20,7 @@ const companySchema = new Schema(
     name: {
       type: String,
       required: true,
+      immutable: true,
     },
     email: {
       type: String,
@@ -49,9 +48,14 @@ const companySchema = new Schema(
     logo: {
       type: String,
     },
+    companyImages: [
+      {
+        type: String,
+        default: "",
+      },
+    ],
     estd: {
       type: Date,
-      required: true,
     },
     description: {
       type: String,
@@ -73,6 +77,11 @@ const companySchema = new Schema(
       type: String,
       enum: ["Verified", "Pending", "Denied"],
       default: "Pending",
+    },
+    jobsPosted: [{ type: Schema.Types.ObjectId, ref: "Job" }],
+    refreshToken: {
+      type: String,
+      default: "",
     },
   },
   { timestamps: true }
