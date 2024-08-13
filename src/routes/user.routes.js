@@ -6,12 +6,11 @@ import {
   login,
   sendVerificationEmail,
   verifyEmailOTP,
-  forgotPassword,
-  updatePassword,
   updateUserDetails,
   logout,
-  giveCompanyRating,
   refreshAccessToken,
+  updateUserPassword,
+  giveCompanyRatingAndReview,
 } from "../controllers/user.controllers.js";
 
 const router = Router();
@@ -30,6 +29,8 @@ router.route("/register").post(
   registerUser
 );
 router.route("/login").post(login);
+router.route("/logout").post(verifyJWT, logout);
+router.route("/reset-access-token").post(refreshAccessToken);
 
 //Protedcted Route
 router.route("/send-verification-mail").post(verifyJWT, sendVerificationEmail);
@@ -52,4 +53,8 @@ router.route("/update-profile-details").patch(
   ]),
   updateUserDetails
 );
+router.route("/change-password").patch(verifyJWT, updateUserPassword);
+router.route("/add-review").patch(verifyJWT, giveCompanyRatingAndReview);
+
+
 export default router;

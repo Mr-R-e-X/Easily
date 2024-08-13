@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
+import { Company } from "../models/company.model.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -160,27 +162,20 @@ const verifyEmailOTP = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Email verified successfully"));
 });
 
-const forgotPassword = asyncHandler(async (req, res) => {});
-
-const updatePassword = asyncHandler(async (req, res) => {});
+const updateUserPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const user = await User.findById(req.user?.id);
+  if (!user) throw new ApiError(404, "Invalid User");
+  const isPasswordValid = await user.isPasswordValid(oldPassword);
+  if (!isPasswordValid) throw new ApiError(401, "Invalid Old Password");
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+  return res.status(200).json(200, {}, "Password Changed Sucessfully");
+});
 
 const updateUserDetails = asyncHandler(async (req, res) => {
   const { name, bio, experience, education, currentlyWorkingAt, address } =
     req.body;
-  console.log(education);
-  let updates = {};
-  if (name && name.trim() !== "") updates.name = name;
-  if (bio && bio.trim() !== "") updates.bio = bio;
-  if (currentlyWorkingAt && currentlyWorkingAt.trim() !== "")
-    updates.currentlyWorkingAt = currentlyWorkingAt;
-  if (address && address.trim() !== "") updates.address = address;
-
-  if (education && Array.isArray(education) && education.length > 0) {
-    updates.$push = { education: { $each: education } };
-  }
-  if (experience && Array.isArray(experience) && experience.length > 0) {
-    updates.$push = { experience: { $each: experience } };
-  }
   const user = await User.findById(req.user._id);
   let newAvatarCloudinaryPath;
   let newCoverImageCloudinaryPath;
@@ -219,6 +214,19 @@ const updateUserDetails = asyncHandler(async (req, res) => {
       newResumeLocalFilePath
     );
   }
+  let updates = {};
+  if (name && name.trim() !== "") updates.name = name;
+  if (bio && bio.trim() !== "") updates.bio = bio;
+  if (currentlyWorkingAt && currentlyWorkingAt.trim() !== "")
+    updates.currentlyWorkingAt = currentlyWorkingAt;
+  if (address && address.trim() !== "") updates.address = address;
+
+  if (education && Array.isArray(education) && education.length > 0) {
+    updates.$push = { education: { $each: education } };
+  }
+  if (experience && Array.isArray(experience) && experience.length > 0) {
+    updates.$push = { experience: { $each: experience } };
+  }
 
   if (newAvatarCloudinaryPath !== undefined)
     updates.avatar = newAvatarCloudinaryPath.url;
@@ -237,7 +245,7 @@ const updateUserDetails = asyncHandler(async (req, res) => {
     updates,
     { new: true }
   ).select(
-    "-password -resume  -savedJobs -appliedJobs -givenRatingsAndReviews -refreshToken"
+    "-password -savedJobs -appliedJobs -givenRatingsAndReviews -refreshToken"
   );
 
   return res
@@ -245,21 +253,90 @@ const updateUserDetails = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, updatedUser, "User updated successfully"));
 });
 
-const logout = asyncHandler(async (req, res) => {});
+const logout = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user?._id,
+    { $set: { refreshToken: undefined } },
+    { new: true }
+  );
 
-const giveCompanyRating = asyncHandler(async (req, res) => {});
+  return res
+    .status(200)
+    .clearCookie("accessToken", COOKIE_OPTIONS)
+    .clearCookie("refreshToken", COOKIE_OPTIONS)
+    .json(new ApiResponse(200, {}, "User logged out successfully!"));
+});
 
-const refreshAccessToken = asyncHandler(async (req, res) => {});
+const giveCompanyRatingAndReview = asyncHandler(async (req, res) => {
+  const { comapanyId, rating, review } = req.body;
+  if (!comapanyId || !rating || !review)
+    throw new ApiError(400, "Invalid Inputs");
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new ApiError(400, "Unauthorized Request");
+  const company = await Company.findById(comapanyId);
+  if (!company) throw new ApiError(400, "Company not found");
+  const existingRatingAndReview = user.givenRatingsAndReviews.findIndex(
+    (reviews) => reviews.company === comapanyId
+  );
+  if (existingRatingAndReview !== -1) {
+    user.givenRatingsAndReviews[existingRatingAndReview].rating = rating;
+    user.givenRatingsAndReviews[existingRatingAndReview].review = review;
+    await user.save();
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          user.givenRatingsAndReviews[existingRatingAndReview],
+          "Rating updated successfully"
+        )
+      );
+  }
+  user.givenRatingsAndReviews.push({
+    company: comapanyId,
+    rating: rating,
+    review: review,
+  });
+  await user.save();
+  return res.status(200).json(new ApiResponse(201, {}));
+});
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    res.cookies.refreshToken || req.body.refreshToken;
+  if (!incomingRefreshToken) throw new ApiError(404, "Unauthorized Request");
+  try {
+    const decodedRefreshToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+    const user = await User.findById(decodedRefreshToken?._id);
+    if (!user) throw new ApiError(401, "Invalid Refresh Token");
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+      user?._id
+    );
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, COOKIE_OPTIONS)
+      .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
+      .json(
+        new ApiResponse(201, { accessToken, refreshToken }, "Token Refreshed")
+      );
+  } catch (error) {
+    throw new ApiError(404, error?.message || "Invalid Refresh Token");
+  }
+});
 
 export {
   registerUser,
   login,
   sendVerificationEmail,
   verifyEmailOTP,
-  forgotPassword,
-  updatePassword,
+  updateUserPassword,
   updateUserDetails,
   logout,
-  giveCompanyRating,
+  giveCompanyRatingAndReview,
   refreshAccessToken,
 };

@@ -31,9 +31,18 @@ export async function destroyFromCloudinary(filePath) {
       api_secret: process.env.CLOUDINARY_API_SECRET,
     });
     if (!filePath) return null;
-    let data = await cloudinary.uploader.destroy(filePath, (res) => {
-      console.log(res);
+    const urlParts = filePath.split("/");
+    const publicIdWithExtension = urlParts.slice(-1).join("");
+    const publicId = publicIdWithExtension.split(".")[0];
+    const data = await cloudinary.uploader.destroy(publicId, {
+      type: "upload",
     });
-    console.log(data);
-  } catch (error) {}
+    if (data.result === "not found") {
+      console.warn(`File not found: ${publicId}`);
+      return data;
+    }
+    console.log(data, publicId);
+  } catch (error) {
+    console.log(error);
+  }
 }

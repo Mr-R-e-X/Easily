@@ -43,7 +43,7 @@ const companySchema = new Schema(
       required: true,
     },
     website: {
-      type: URL,
+      type: String,
       required: true,
     },
     logo: {
@@ -60,7 +60,7 @@ const companySchema = new Schema(
     socialLinks: [
       {
         socialMediaName: String,
-        link: URL,
+        link: String,
       },
     ],
     ratingsAndReviews: [ratingsAndReviewsSchema],
