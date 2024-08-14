@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 // import from model
 import { Company } from "../models/company.model.js";
+import { CompanyOTP } from "../models/companyOtp.model.js";
+import { Job } from "../models/jobs.model.js";
 // import from util
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
@@ -14,6 +16,7 @@ import {
 import { COOKIE_OPTIONS } from "../utils/constants.js";
 import { generateRandomOtp } from "../utils/generateOtp.js";
 import { sendMailFunction } from "../utils/nodemailer.js";
+import { Application } from "../models/application.model.js";
 
 const generateAccessAndRefreshToken = async (companyId) => {
   try {
@@ -150,23 +153,171 @@ const updateCompanyDetails = asyncHandler(async (req, res) => {
     );
 });
 
-const getCompanyVerificationDocuments = asyncHandler(async (req, res) => {});
+const uploadCompanyVerificationDocuments = asyncHandler(async (req, res) => {
+  const company = await Company.findById(req.company?._id);
+
+  if (!company) {
+    return res.status(404).json(new ApiError(404, "Company not found"));
+  }
+
+  if (req.files && req.files.length > 0) {
+    const documents = await Promise.all(
+      req.files.map(async (file, idx) => {
+        const documentType = req.body.documentType[idx];
+        const uploadResponse = await uploadDataInCloudinary(file.path);
+
+        return {
+          documentType,
+          url: uploadResponse.url,
+        };
+      })
+    );
+
+    company.verificationDocuments = documents;
+    await company.save({ validateBeforeSave: false });
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          201,
+          company.verificationDocuments,
+          "Documents uploaded successfully"
+        )
+      );
+  }
+});
 
 const updateCompanyVerificationStatus = asyncHandler(async (req, res) => {});
 
-const verifyCompanyEmail = asyncHandler(async (req, res) => {});
+const sendCompanyVerificationMail = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) throw new ApiError(400, "Email is required");
+  if (!(email.toLowercase() == req.company?.email))
+    throw new ApiError(400, "Unauthorized");
+  const company = await Company.findById(req.company?._id);
+  if (!company) throw new ApiError(400, "Company not found");
+  const otp = generateRandomOtp();
+  if (company.isEmailVerified)
+    throw new ApiError(401, "Email already verified");
+  const checkPrevious = await CompanyOTP.findOne({ companyId: company._id });
+  if (!checkPrevious) {
+    const mail = await sendMailFunction(
+      email,
+      "Email Verification",
+      `<h1>Hi,</h1><h1>Your OTP is <strong>${otp}</strong></h1>`
+    );
+    console.log("Mail: ", mail);
+    await CompanyOTP.create({ companyId: company._id, otp });
+    return res
+      .status(200)
+      .json(new ApiResponse(201, otp, "OTP send seccessfully"));
+  }
+
+  const mail = await sendMailFunction(
+    email,
+    "Email Verification",
+    `<h1>Hi,</h1><h1>Your OTP is <strong>${otp}</strong></h1>`
+  );
+  console.log("Mail: ", mail);
+  checkPrevious.otp = otp;
+  checkPrevious.createdAt = Date.now();
+  return res
+    .status(200)
+    .json(new ApiResponse(201, otp, "Otp resended successfully"));
+});
+
+const verifyCompanyEmail = asyncHandler(async (req, res) => {
+  const { otp } = req.body;
+  if (!otp) throw new ApiError(400, "OTP is required");
+  const company = await CompanyOTP.findOne({ companyId: req.company?._id });
+  if (!company) throw new ApiError(400, "Unauthorized");
+  const isCorrectOtp = company.compareOtp(otp);
+  if (!isCorrectOtp) throw new ApiError(400, "Wrong OTP");
+  const updatedCompany = await Company.findByIdAndUpdate(
+    { _id: company.companyId },
+    { $set: { isEmailVerified: true } },
+    { new: true }
+  ).select("-password -verificationDocuments -refreshToken");
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedCompany, "Email is verified successfully")
+    );
+});
 
 const giveAdminAccess = asyncHandler(async (req, res) => {});
 
-const postNewJob = asyncHandler(async (req, res) => {});
+const postNewJob = asyncHandler(async (req, res) => {
+  const {
+    title,
+    description,
+    location,
+    employmentType,
+    skills,
+    numberOfVacancies,
+    requirements,
+    responsibilities,
+    salaryRange,
+  } = req.body;
 
-const getApplicantsDetails = asyncHandler(async (req, res) => {});
+  if (
+    !title ||
+    !description ||
+    !location ||
+    !employmentType ||
+    !numberOfVacancies ||
+    !requirements ||
+    !responsibilities ||
+    !salaryRange
+  ) {
+    throw new ApiError(400, "All fields are required");
+  }
+  if (!skills && skills.length === 0) {
+    throw new ApiError(400, "Skills are required");
+  }
+  const newJob = await Job.create({
+    title,
+    description,
+    location,
+    employmentType,
+    skills,
+    numberOfVacancies,
+    requirements,
+    responsibilities,
+    salaryRange,
+    companyRef: req.company?._id,
+  });
+
+  await Company.findByIdAndUpdate(
+    { _id: req.company?._id },
+    { $push: { jobsPosted: newJob._id } },
+    { new: true }
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, newJob, "Job created successfully"));
+});
+
+const getApplicantsDetails = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+  if (!jobId) throw new ApiError(400, "Job ID is required");
+  const jobDtls = await Job.findById(jobId);
+  if (!jobDtls) throw new ApiError(400, "Job not found");
+  if (jobDtls.companyRef !== req.company?._id)
+    throw new ApiError(400, "Unauthorized");
+  const getApplicats = await Application.findById(jobDtls._id).populate();
+  return res
+    .status(200)
+    .json(new ApiResponse(200, getApplicats, "Total application list"));
+});
 
 export {
   registerCompany,
   loginAsCompany,
   updateCompanyDetails,
-  getCompanyVerificationDocuments,
+  uploadCompanyVerificationDocuments,
   updateCompanyVerificationStatus,
   verifyCompanyEmail,
   giveAdminAccess,

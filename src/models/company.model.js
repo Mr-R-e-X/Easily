@@ -70,9 +70,27 @@ const companySchema = new Schema(
     ratingsAndReviews: [ratingsAndReviewsSchema],
     verificationDocuments: [
       {
-        type: String,
+        documentType: {
+          type: String,
+          enum: [
+            "Business Registration Certificate",
+            "Tax Identification Number",
+            "Proof of Address",
+            "Director Identification Proof",
+          ],
+        },
+        documentURL: {
+          type: String,
+        },
       },
     ],
+    // admins: [
+    //   {
+    //     type: Schema.Types.ObjectId,
+    //     ref: "User",
+    //     dept: "",
+    //   },
+    // ],
     verificationStatus: {
       type: String,
       enum: ["Verified", "Pending", "Denied"],

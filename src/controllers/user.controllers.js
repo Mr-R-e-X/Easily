@@ -125,7 +125,7 @@ const sendVerificationEmail = asyncHandler(async (req, res) => {
     await UserOTP.create({ userId: user._id, otp: otp });
     return res
       .status(200)
-      .json(new ApiResponse(201, otp, "Otp send successfully"));
+      .json(new ApiResponse(201, otp, "OTP send successfully"));
   }
   const mail = await sendMailFunction(
     email,

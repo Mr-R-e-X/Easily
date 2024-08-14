@@ -6,11 +6,12 @@ const jobSchema = new Schema(
       type: String,
       required: true,
     },
-    companyName: {
+    companyRef: {
       type: Schema.Types.ObjectId,
       ref: "Company",
       required: true,
     },
+
     description: {
       type: String,
       required: true,
@@ -49,7 +50,6 @@ const jobSchema = new Schema(
       type: String,
       default: "open",
       enum: ["open", "closed"],
-      required: true,
     },
   },
   { timestamps: true }
