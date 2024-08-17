@@ -8,12 +8,12 @@ import {
   verifyEmailOTP,
   updateUserDetails,
   logout,
-  refreshAccessToken,
   updateUserPassword,
   giveCompanyRatingAndReview,
   applyForJob,
   savedJobs,
   removeJobFromSavedJob,
+  refreshUserAccessToken,
 } from "../controllers/user.controllers.js";
 
 const router = Router();
@@ -33,7 +33,7 @@ router.route("/register").post(
 );
 router.route("/login").post(login);
 router.route("/logout").post(logout);
-router.route("/reset-access-token").post(refreshAccessToken);
+router.route("/reset-access-token").post(refreshUserAccessToken);
 
 //Protedcted Route
 router

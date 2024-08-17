@@ -18,22 +18,23 @@ import {
 import { COOKIE_OPTIONS } from "../utils/constants.js";
 import { generateRandomOtp } from "../utils/generateOtp.js";
 import { sendMailFunction } from "../utils/nodemailer.js";
+import { generateAccessAndRefreshToken } from "../utils/generateJwtTokens.js";
 
-const generateAccessAndRefreshToken = async (userId) => {
-  try {
-    const user = await User.findById(userId);
-    const accessToken = await user.generateAccessToken();
-    const refreshToken = await user.generateRefreshToken();
-    user.refreshToken = refreshToken;
-    await user.save({ validateBeforeSave: false });
-    return { accessToken, refreshToken };
-  } catch (error) {
-    throw new ApiError(
-      500,
-      "Something went wrong while generating access token and refresh token"
-    );
-  }
-};
+// const generateAccessAndRefreshToken = async (userId) => {
+//   try {
+//     const user = await User.findById(userId);
+//     const accessToken = await user.generateAccessToken();
+//     const refreshToken = await user.generateRefreshToken();
+//     user.refreshToken = refreshToken;
+//     await user.save({ validateBeforeSave: false });
+//     return { accessToken, refreshToken };
+//   } catch (error) {
+//     throw new ApiError(
+//       500,
+//       "Something went wrong while generating access token and refresh token"
+//     );
+//   }
+// };
 
 const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
@@ -89,6 +90,7 @@ const login = asyncHandler(async (req, res) => {
   const isPasswordValid = await foundUser.isPasswordValid(password);
   if (!isPasswordValid) throw new ApiError(401, "Invalid password");
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    User,
     foundUser._id
   );
   const loggedInUser = await User.findById(foundUser._id).select(
@@ -103,37 +105,25 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const sendVerificationEmail = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  const registeredEmail = req.user?.email;
-
-  if (!email) throw new ApiError(401, "Email is required");
-  if (!(email.toLowerCase() == registeredEmail))
-    throw new ApiError(401, "Unauthorized email");
+  const { email } = req.user;
   const user = await User.findOne({ email });
   if (!user) throw new ApiError(404, "User not found");
   if (user.isEmailVerified) throw new ApiError(401, "Email already verified");
   const otp = generateRandomOtp();
 
   let checkPrevOtp = await UserOTP.findOne({ userId: user._id });
-  if (!checkPrevOtp) {
-    const mail = await sendMailFunction(
-      email,
-      "Email Verification",
-      `<h1>Hi,</h1><h1>Your OTP is <strong>${otp}</strong></h1>`
-    );
-    console.log("MAIL: " + mail);
-    await UserOTP.create({ userId: user._id, otp: otp });
-    return res
-      .status(200)
-      .json(new ApiResponse(201, otp, "OTP send successfully"));
-  }
   const mail = await sendMailFunction(
     email,
     "Email Verification",
     `<h1>Hi,</h1><h1>Your OTP is <strong>${otp}</strong></h1>`
   );
   console.log("MAIL: " + mail);
-
+  if (!checkPrevOtp) {
+    await UserOTP.create({ userId: user._id, otp: otp });
+    return res
+      .status(200)
+      .json(new ApiResponse(201, otp, "OTP send successfully"));
+  }
   checkPrevOtp.otp = otp;
   checkPrevOtp.createdAt = Date.now();
   await checkPrevOtp.save();
@@ -162,6 +152,7 @@ const verifyEmailOTP = asyncHandler(async (req, res) => {
   ).select(
     "-password -resume -address -experience -bio -education -savedJobs -appliedJobs -givenRatingsAndReviews -refreshToken"
   );
+  await UserOTP.findByIdAndDelete(checkUser._id);
   return res
     .status(200)
     .json(new ApiResponse(200, user, "Email verified successfully"));
@@ -360,7 +351,7 @@ const giveCompanyRatingAndReview = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(201, {}));
 });
 
-const refreshAccessToken = asyncHandler(async (req, res) => {
+const refreshUserAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
   if (!incomingRefreshToken) throw new ApiError(404, "Unauthorized Request");
@@ -373,6 +364,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     if (!user) throw new ApiError(401, "Invalid Refresh Token");
 
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+      User,
       user?._id
     );
 
@@ -397,7 +389,7 @@ export {
   updateUserDetails,
   logout,
   giveCompanyRatingAndReview,
-  refreshAccessToken,
+  refreshUserAccessToken,
   applyForJob,
   savedJobs,
   removeJobFromSavedJob,

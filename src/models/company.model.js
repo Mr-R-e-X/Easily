@@ -37,6 +37,12 @@ const companySchema = new Schema(
       required: true,
       minlength: 8,
     },
+    adminDept: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Admin",
+      },
+    ],
     contactNumber: {
       type: String,
       required: true,
@@ -84,19 +90,17 @@ const companySchema = new Schema(
         },
       },
     ],
-    // admins: [
-    //   {
-    //     type: Schema.Types.ObjectId,
-    //     ref: "User",
-    //     dept: "",
-    //   },
-    // ],
     verificationStatus: {
       type: String,
       enum: ["Verified", "Pending", "Denied"],
       default: "Pending",
     },
-    jobsPosted: [{ type: Schema.Types.ObjectId, ref: "Job" }],
+    jobsPosted: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Job",
+      },
+    ],
     refreshToken: {
       type: String,
       default: "",
@@ -109,6 +113,7 @@ companySchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password, 12);
 });
+
 
 companySchema.methods.isPasswordValid = async function (password) {
   return await bcrypt.compare(password, this.password);

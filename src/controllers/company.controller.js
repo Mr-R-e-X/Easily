@@ -5,6 +5,8 @@ import jwt from "jsonwebtoken";
 import { Company } from "../models/company.model.js";
 import { CompanyOTP } from "../models/companyOtp.model.js";
 import { Job } from "../models/jobs.model.js";
+import { Application } from "../models/application.model.js";
+import { Admin } from "../models/companyAdmin.model.js";
 // import from util
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
@@ -16,23 +18,23 @@ import {
 import { COOKIE_OPTIONS } from "../utils/constants.js";
 import { generateRandomOtp } from "../utils/generateOtp.js";
 import { sendMailFunction } from "../utils/nodemailer.js";
-import { Application } from "../models/application.model.js";
+import { generateAccessAndRefreshToken } from "../utils/generateJwtTokens.js";
 
-const generateAccessAndRefreshToken = async (companyId) => {
-  try {
-    const company = Company.findById(companyId);
-    const accessToken = await company.generateAccessToken();
-    const refreshToken = await company.generateRefreshToken();
-    company.refreshToken = refreshToken;
-    await company.save({ validateBeforeSave: false });
-    return { accessToken, refreshToken };
-  } catch (error) {
-    throw new ApiError(
-      500,
-      "Something went wrong while generating access token and refresh token"
-    );
-  }
-};
+// const generateAccessAndRefreshToken = async (companyId) => {
+//   try {
+//     const company = Company.findById(companyId);
+//     const accessToken = await company.generateAccessToken();
+//     const refreshToken = await company.generateRefreshToken();
+//     company.refreshToken = refreshToken;
+//     await company.save({ validateBeforeSave: false });
+//     return { accessToken, refreshToken };
+//   } catch (error) {
+//     throw new ApiError(
+//       500,
+//       "Something went wrong while generating access token and refresh token"
+//     );
+//   }
+// };
 
 const checkUrl = async (url) => {
   try {
@@ -77,6 +79,7 @@ const loginAsCompany = asyncHandler(async (req, res) => {
   const matchPassword = company.isPasswordValid(password);
   if (!matchPassword) throw new ApiError(400, "Invalid password");
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    Company,
     company._id
   );
   const loggedInCompany = await Company.findById(company._id).select(
@@ -191,34 +194,25 @@ const uploadCompanyVerificationDocuments = asyncHandler(async (req, res) => {
 const updateCompanyVerificationStatus = asyncHandler(async (req, res) => {});
 
 const sendCompanyVerificationMail = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  if (!email) throw new ApiError(400, "Email is required");
-  if (!(email.toLowercase() == req.company?.email))
-    throw new ApiError(400, "Unauthorized");
+  const { email } = req.company;
   const company = await Company.findById(req.company?._id);
   if (!company) throw new ApiError(400, "Company not found");
   const otp = generateRandomOtp();
   if (company.isEmailVerified)
     throw new ApiError(401, "Email already verified");
   const checkPrevious = await CompanyOTP.findOne({ companyId: company._id });
-  if (!checkPrevious) {
-    const mail = await sendMailFunction(
-      email,
-      "Email Verification",
-      `<h1>Hi,</h1><h1>Your OTP is <strong>${otp}</strong></h1>`
-    );
-    console.log("Mail: ", mail);
-    await CompanyOTP.create({ companyId: company._id, otp });
-    return res
-      .status(200)
-      .json(new ApiResponse(201, otp, "OTP send seccessfully"));
-  }
-
   const mail = await sendMailFunction(
     email,
     "Email Verification",
     `<h1>Hi,</h1><h1>Your OTP is <strong>${otp}</strong></h1>`
   );
+  console.log("Mail: ", mail);
+  if (!checkPrevious) {
+    await CompanyOTP.create({ companyId: company._id, otp });
+    return res
+      .status(200)
+      .json(new ApiResponse(201, otp, "OTP send seccessfully"));
+  }
   console.log("Mail: ", mail);
   checkPrevious.otp = otp;
   checkPrevious.createdAt = Date.now();
@@ -239,6 +233,7 @@ const verifyCompanyEmail = asyncHandler(async (req, res) => {
     { $set: { isEmailVerified: true } },
     { new: true }
   ).select("-password -verificationDocuments -refreshToken");
+  await CompanyOTP.findByIdAndDelete(company._id);
   return res
     .status(200)
     .json(
@@ -246,7 +241,52 @@ const verifyCompanyEmail = asyncHandler(async (req, res) => {
     );
 });
 
-const giveAdminAccess = asyncHandler(async (req, res) => {});
+const createAdminAccess = asyncHandler(async (req, res) => {
+  const { adminName, adminId, adminEmail, depertment, password } = req.body;
+  if (!adminName || !adminId || !adminEmail || !depertment || !password)
+    throw new ApiError(400, "All feilds are required");
+  const company = await Company.findById(req.company?._id);
+  if (!company) throw new ApiError(400, "Unauthorized");
+  const checkAvailableAdmin = await Admin.findOne({ adminId, adminEmail });
+  if (!checkAvailableAdmin) throw new ApiError(401, "Already registered");
+  const newAdmin = await Admin.create({
+    adminName,
+    adminId,
+    adminEmail,
+    adminPassword: password,
+    depertment,
+  }).select("-password");
+  return res
+    .status(200)
+    .json(new ApiResponse(201, newAdmin, "New Admin created"));
+});
+
+const revokeAdminAccess = asyncHandler(async (req, res) => {
+  const { adminEmail, adminId } = req.body;
+  if (!adminEmail && !adminId)
+    throw new ApiError(400, "Admin Email and ID is required");
+  const company = await Company.findById(req.company?._id);
+  if (!company) throw new ApiError(400, "Unauthorized");
+  const adminIndex = company.adminDept.findIndex(
+    (admin) => admin.adminId === adminId && admin.adminEmail === adminEmail
+  );
+  if (adminIndex === -1) throw new ApiError(401, "Admin not found");
+  const removedAdmin = company.adminDept[adminIndex];
+  company.adminDept.splice(adminIndex, 1);
+  await company.save();
+  const removedAdmindetails = await Admin.deleteOne(removedAdmin._id).select(
+    "-adminPassword"
+  );
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        204,
+        { removedAdmindetails },
+        "Admin Removed Successfully"
+      )
+    );
+});
 
 const postNewJob = asyncHandler(async (req, res) => {
   const {
@@ -268,8 +308,7 @@ const postNewJob = asyncHandler(async (req, res) => {
     !employmentType ||
     !numberOfVacancies ||
     !requirements ||
-    !responsibilities ||
-    !salaryRange
+    !responsibilities
   ) {
     throw new ApiError(400, "All fields are required");
   }
@@ -285,7 +324,7 @@ const postNewJob = asyncHandler(async (req, res) => {
     numberOfVacancies,
     requirements,
     responsibilities,
-    salaryRange,
+    salaryRange: salaryRange || "Not Disclosed",
     companyRef: req.company?._id,
   });
 
@@ -313,14 +352,43 @@ const getApplicantsDetails = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, getApplicats, "Total application list"));
 });
 
+const refreshCompanyAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
+  if (!incomingRefreshToken) throw new ApiError(400, "Unauthorized");
+  try {
+    const decodeRefreshToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+    const company = await User.findById(decodeRefreshToken?._id);
+    if (!company) throw new ApiError(401, "Invalid Refresh Token");
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+      Company,
+      company._id
+    );
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, COOKIE_OPTIONS)
+      .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
+      .json(new ApiResponse(201, { accessToken, refreshToken }));
+  } catch (error) {
+    throw new ApiError(404, error?.message || "Invalid Refresh Token");
+  }
+});
+
 export {
   registerCompany,
   loginAsCompany,
   updateCompanyDetails,
   uploadCompanyVerificationDocuments,
   updateCompanyVerificationStatus,
+  sendCompanyVerificationMail,
   verifyCompanyEmail,
-  giveAdminAccess,
+  createAdminAccess,
+  revokeAdminAccess,
   postNewJob,
   getApplicantsDetails,
+  refreshCompanyAccessToken,
 };
