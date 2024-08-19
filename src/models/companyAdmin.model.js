@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
-
+import jwt from "jsonwebtoken";
 const adminSchema = new Schema(
   {
     company: {
@@ -77,6 +77,5 @@ adminSchema.methods.generateRefreshToken = async function () {
     }
   );
 };
-
 
 export const Admin = mongoose.model("Admin", adminSchema);

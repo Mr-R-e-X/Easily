@@ -1,5 +1,4 @@
 import mongoose, { Schema } from "mongoose";
-import { Company } from "./company.model.js";
 
 const jobSchema = new Schema(
   {
@@ -12,7 +11,7 @@ const jobSchema = new Schema(
       ref: "Company",
       required: true,
     },
-    comapnyName: {
+    companyName: {
       type: String,
     },
     companyLogo: {
@@ -39,6 +38,10 @@ const jobSchema = new Schema(
     ],
     numberOfVacancies: {
       type: Number,
+    },
+    totalApplicantCount: {
+      type: Number,
+      default: 0,
     },
     requirements: {
       type: String,

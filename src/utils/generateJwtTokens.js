@@ -3,8 +3,8 @@ import { ApiError } from "./apiError.js";
 export const generateAccessAndRefreshToken = async (model, id) => {
   try {
     const db = await model.findById(id);
-    const accessToken = await company.generateAccessToken();
-    const refreshToken = await company.generateRefreshToken();
+    const accessToken = await db.generateAccessToken();
+    const refreshToken = await db.generateRefreshToken();
     db.refreshToken = refreshToken;
     await db.save({ validateBeforeSave: false });
     return { accessToken, refreshToken };

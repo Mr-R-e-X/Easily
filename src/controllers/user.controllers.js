@@ -1,5 +1,4 @@
 // import from external package
-import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 // import from model
 import { User } from "../models/user.model.js";
@@ -136,7 +135,6 @@ const sendVerificationEmail = asyncHandler(async (req, res) => {
 const verifyEmailOTP = asyncHandler(async (req, res) => {
   const { otp } = req.body;
   if (!otp) throw new ApiError(400, "OTP is required");
-  const { ObjectId } = mongoose.Types;
 
   const checkUser = await UserOTP.findOne({ userId: req.user?._id });
 
@@ -144,7 +142,7 @@ const verifyEmailOTP = asyncHandler(async (req, res) => {
   const comparedValue = await checkUser.compareOtp(otp);
   if (!comparedValue) throw new ApiError(401, "Invalid OTP");
   const user = await User.findByIdAndUpdate(
-    { _id: new ObjectId(req.user?._id) },
+    { _id: req.user?._id },
     {
       $set: { isEmailVerified: true },
     },

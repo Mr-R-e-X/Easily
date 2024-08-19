@@ -24,14 +24,13 @@ export const verifyUserJWT = asyncHandler(async (req, res, next) => {
   }
 });
 
-export const verifyCompanyJWT = asyncHandler(async (req, res) => {
+export const verifyCompanyJWT = asyncHandler(async (req, res, next) => {
   try {
     const token =
       req.cookies?.accessToken ||
       req.header("Authorization").replace("Bearer", "");
     if (!token) throw new ApiError(401, "Unauthorized Request");
     const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    // console.log(decodedToken);
     const company = await Company.findById(decodedToken?._id).select(
       "-password -verificationDocuments -refreshToken"
     );
@@ -43,7 +42,7 @@ export const verifyCompanyJWT = asyncHandler(async (req, res) => {
   }
 });
 
-export const verifyAdminJWT = asyncHandler(async (req, res) => {
+export const verifyAdminJWT = asyncHandler(async (req, res, next) => {
   try {
     const token =
       req.cookies?.accessToken ||

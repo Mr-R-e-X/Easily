@@ -23,8 +23,10 @@ app.get("/", (req, res) => {
 
 import userRouter from "./routes/user.routes.js";
 import companyRouter from "./routes/company.routes.js";
+import jobRouter from "./routes/jobs.routes.js";
 
 app.use("/api/user", userRouter);
 app.use("/api/company", companyRouter);
+app.use("/api/job", jobRouter);
 
 export default app;

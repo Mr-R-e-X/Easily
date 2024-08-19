@@ -1,9 +1,9 @@
 // import from external package
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+
 // import from model
 import { Company } from "../models/company.model.js";
-import { CompanyOTP } from "../models/companyOtp.model.js";
 import { Job } from "../models/jobs.model.js";
 import { Application } from "../models/application.model.js";
 import { Admin } from "../models/companyAdmin.model.js";
@@ -21,6 +21,8 @@ import { sendMailFunction } from "../utils/nodemailer.js";
 import { generateAccessAndRefreshToken } from "../utils/generateJwtTokens.js";
 import { AdminOTP } from "../models/adminOtp.model.js";
 
+const { ObjectId } = mongoose.Types;
+
 const loginAsAdmin = asyncHandler(async (req, res) => {
   const { adminEmail, adminPassword, adminId } = req.body;
   if (!adminEmail && !adminId)
@@ -28,7 +30,7 @@ const loginAsAdmin = asyncHandler(async (req, res) => {
   if (!adminPassword) throw new ApiError(401, "Admin Password is invalid");
   const admin = await Admin.findOne({ adminEmail, adminId });
   if (!admin) throw new ApiError(401, "Admin not found");
-  const isMatch = await admin.comparePassword(adminPassword);
+  const isMatch = await admin.isPasswordValid(adminPassword);
   if (!isMatch) throw new ApiError(401, "Incorrect password");
   const company = await Company.findById(admin.company);
   if (!company) throw new ApiError(404, "Company Not Found");
@@ -51,7 +53,10 @@ const loginAsAdmin = asyncHandler(async (req, res) => {
 });
 
 const logoutAdmin = asyncHandler(async (req, res) => {
-  await Admin.findById({ _id: req.admin?._id });
+  await Admin.findByIdAndUpdate(
+    { _id: req.admin?._id },
+    { $set: { refreshToken: null } }
+  );
   res.clearCookie("accessToken", COOKIE_OPTIONS);
   res.clearCookie("refreshToken", COOKIE_OPTIONS);
   return res
@@ -130,9 +135,15 @@ const postJobAsAdmin = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Skills are required");
   }
 
+  const company = await Company.findById({
+    _id: new ObjectId(req.admin?.company),
+  });
+  if (!company) throw new ApiError(404, "Company not found");
   const newJob = await Job.create({
     title,
     description,
+    comapnyName: company.name,
+    companyLogo: company.logo || "",
     location,
     employmentType,
     skills,
@@ -143,16 +154,14 @@ const postJobAsAdmin = asyncHandler(async (req, res) => {
     companyRef: req.admin.company,
   });
 
-  const { ObjectId } = mongoose.Types;
-
   await Company.findByIdAndUpdate(
-    { _id: new ObjectId(req.admin?.company) },
+    { _id: company._id },
     { $push: { jobsPosted: newJob._id } },
     { new: true }
   );
 
   await Admin.findByIdAndUpdate(
-    { _id: new ObjectId(req.admin?._id) },
+    { _id: req.admin?._id },
     { $push: { postedJobs: newJob._id } }
   );
 
@@ -165,6 +174,124 @@ const deleteAdminPostedJob = asyncHandler(async (req, res) => {
   const { jobId } = req.body;
   const job = await Job.findById(jobId);
   if (!job) throw new ApiError(404, "Job not found");
+  const company = await Company.findById(job.companyRef);
+  if (company._id != req.admin.company) throw new ApiError(400, "Unauthorized");
+  await Job.findByIdAndDelete(job._id);
+  await Company.findByIdAndUpdate(
+    { _id: job.companyRef },
+    { $pull: { jobsPosted: job._id } }
+  );
+  await Admin.findByIdAndUpdate(
+    { _id: req.admin?._id },
+    { $pull: { postedJobs: job._id } }
+  );
+  return res
+    .status(200)
+    .json(new ApiResponse(204, {}, "Job deleted successfully"));
+});
+
+const updateJobAsAdmin = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+  console.log(jobId);
+  const {
+    title,
+    description,
+    location,
+    employmentType,
+    skills,
+    numberOfVacancies,
+    requirements,
+    responsibilities,
+    salaryRange,
+    status,
+  } = req.body;
+
+  if (!jobId) throw new ApiError(404, "Job Id is not provided");
+
+  const job = await Job.findById(jobId);
+  if (!job) throw new ApiError(404, "Job not found");
+
+  const admin = await Admin.findById(req.admin?._id);
+  if (!admin) throw new ApiError(404, "Unauthorized");
+
+  const checkUpdate = admin.postedJobs.findIndex(
+    (postedJob) => postedJob.toJSON() == job._id.toString()
+  );
+  if (checkUpdate == -1) throw new ApiError(404, "Unauthorized to update");
+
+  const company = await Company.findById(job.companyRef);
+
+  if (!company) throw new ApiError(404, "Job not valid");
+  if (!company._id.equals(req.admin.company))
+    throw new ApiError(400, "Unauthorized");
+
+  const updates = {};
+  if (title) updates.title = title;
+  if (description) updates.description = description;
+  if (location) updates.location = location;
+  if (employmentType) updates.employmentType = employmentType;
+  if (skills && skills.length > 0) {
+    let newSkills = job.skills.filter((skill) => {
+      if (!skills.includes(skill)) return skill;
+    });
+    skills = [...skills, ...newSkills];
+    updates.skills = skills;
+  }
+  if (numberOfVacancies) updates.numberOfVacancies = numberOfVacancies;
+  if (requirements) updates.requirements = requirements;
+  if (responsibilities) updates.responsibilities = responsibilities;
+  if (salaryRange) updates.salaryRange = salaryRange;
+  if (status) updates.status = status;
+
+  if (Object.keys(updates).length == 0) {
+    throw new ApiError(400, "No updates provided");
+  }
+  const updatedJob = await Job.findByIdAndUpdate(
+    job._id,
+    { $set: updates },
+    { new: true }
+  );
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedJob, "Job updated successfully"));
+});
+
+const getApplicantsDetails = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+  console.log(jobId);
+  if (!jobId) throw new ApiError(400, "Job ID is required");
+  const jobDtls = await Job.findById(new ObjectId(jobId));
+  if (!jobDtls) throw new ApiError(400, "Job not found");
+  if (jobDtls.companyRef.equals(req.company?._id))
+    throw new ApiError(400, "Unauthorized");
+  console.log("here");
+  const getApplicats = await Application.aggregate([
+    {
+      $match: {
+        jobId: jobDtls._id,
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "candidateId",
+        foreignField: "_id",
+        as: "candidate",
+      },
+    },
+    {
+      $group: {
+        candidateName: { $first: "$candidate.name" },
+        email: { $first: "$candidate.email" },
+        resume: { $first: "$resumeLink" },
+        currentlyWorkingAt: { $first: "$candidate.currentlyWorkingAt" },
+      },
+    },
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, getApplicats, "Total application list"));
 });
 
 const refreshAdminAccessToken = asyncHandler(async (req, res) => {
@@ -182,10 +309,26 @@ const refreshAdminAccessToken = asyncHandler(async (req, res) => {
       .status(200)
       .cookie("accessToken", accessToken, COOKIE_OPTIONS)
       .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
-      .json(new ApiResponse(200, admin, "Access token refreshed successfully"));
+      .json(
+        new ApiResponse(
+          200,
+          { accessToken, refreshToken },
+          "Access token refreshed successfully"
+        )
+      );
   } catch (error) {
     throw new ApiError(401, "Invalid refresh token");
   }
 });
 
-export { loginAsAdmin, logoutAdmin, refreshAdminAccessToken };
+export {
+  loginAsAdmin,
+  logoutAdmin,
+  sendVerificationAdminEmail,
+  verifyAdminEmail,
+  postJobAsAdmin,
+  deleteAdminPostedJob,
+  getApplicantsDetails,
+  refreshAdminAccessToken,
+  updateJobAsAdmin,
+};

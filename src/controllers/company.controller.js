@@ -1,6 +1,6 @@
 // import from external package
-import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 // import from model
 import { Company } from "../models/company.model.js";
 import { CompanyOTP } from "../models/companyOtp.model.js";
@@ -22,9 +22,11 @@ import { generateAccessAndRefreshToken } from "../utils/generateJwtTokens.js";
 
 // const generateAccessAndRefreshToken = async (companyId) => {
 //   try {
-//     const company = Company.findById(companyId);
+//     const company = await Company.findById(companyId);
 //     const accessToken = await company.generateAccessToken();
 //     const refreshToken = await company.generateRefreshToken();
+//     console.log("access token: " + accessToken);
+//     console.log("refresh token: " + refreshToken);
 //     company.refreshToken = refreshToken;
 //     await company.save({ validateBeforeSave: false });
 //     return { accessToken, refreshToken };
@@ -115,14 +117,14 @@ const updateCompanyDetails = asyncHandler(async (req, res) => {
     updates.$push = { socialLinks: { $each: socialLinks } };
 
   if (req.files && Array.isArray(req.files.logo) && req.files.logo.length > 0) {
-    if (company.logo.length > 0) await destroyFromCloudinary(company.logo);
     let localLogoPath = req.files.logo[0].path;
+    if (company.logo !== "") await destroyFromCloudinary(company.logo);
     logoCloudinaryPath = await uploadDataInCloudinary(localLogoPath);
   }
   if (
     req.files &&
     Array.isArray(req.files.companyImages) &&
-    req.files.companyImages > 0
+    req.files.companyImages.length > 0
   ) {
     companyImagesCloudinaryPaths = await Promise.all(
       req.files.companyImages.map(async (images) => {
@@ -130,8 +132,15 @@ const updateCompanyDetails = asyncHandler(async (req, res) => {
         return path.url;
       })
     );
-  }
-  if (companyImagesCloudinaryPaths.length > 0) {
+    let len = companyImagesCloudinaryPaths.length;
+    const itemToDelete = company.companyImages.splice(
+      company.companyImages.length - len,
+      len
+    );
+    await Promise.all(
+      itemToDelete.map(async (image) => await destroyFromCloudinary(image))
+    );
+    await company.save();
     updates.$push = { companyImages: { $each: companyImagesCloudinaryPaths } };
   }
   if (logoCloudinaryPath !== undefined) updates.logo = logoCloudinaryPath.url;
@@ -243,22 +252,32 @@ const verifyCompanyEmail = asyncHandler(async (req, res) => {
 
 const createAdminAccess = asyncHandler(async (req, res) => {
   const { adminName, adminId, adminEmail, depertment, password } = req.body;
+  console.table([adminName, adminId, adminEmail, depertment, password]);
   if (!adminName || !adminId || !adminEmail || !depertment || !password)
     throw new ApiError(400, "All feilds are required");
   const company = await Company.findById(req.company?._id);
   if (!company) throw new ApiError(400, "Unauthorized");
   const checkAvailableAdmin = await Admin.findOne({ adminId, adminEmail });
-  if (!checkAvailableAdmin) throw new ApiError(401, "Already registered");
+  // console.log(checkAvailableAdmin);
+  if (checkAvailableAdmin) throw new ApiError(401, "Already registered");
   const newAdmin = await Admin.create({
+    company: company._id,
     adminName,
     adminId,
     adminEmail,
     adminPassword: password,
     depertment,
-  }).select("-password");
+  });
+
+  company.adminDept.push(newAdmin._id);
+  await company.save();
+  const newAdminDetails = await Admin.findById(newAdmin._id).select(
+    "-adminPassword"
+  );
+
   return res
     .status(200)
-    .json(new ApiResponse(201, newAdmin, "New Admin created"));
+    .json(new ApiResponse(201, newAdminDetails, "New Admin created"));
 });
 
 const revokeAdminAccess = asyncHandler(async (req, res) => {
@@ -266,26 +285,27 @@ const revokeAdminAccess = asyncHandler(async (req, res) => {
   if (!adminEmail && !adminId)
     throw new ApiError(400, "Admin Email and ID is required");
   const company = await Company.findById(req.company?._id);
+  console.log(adminEmail, adminId);
   if (!company) throw new ApiError(400, "Unauthorized");
-  const adminIndex = company.adminDept.findIndex(
-    (admin) => admin.adminId === adminId && admin.adminEmail === adminEmail
+  const checkAdmin = await Admin.findOne({
+    company: company._id,
+    adminEmail,
+    adminId,
+  });
+  console.log(checkAdmin);
+  if (!checkAdmin) throw new ApiError(401, "Admin not found");
+  console.log(company.adminDept[0]);
+  const adminIndex = company.adminDept.findIndex((admin) =>
+    admin.equals(checkAdmin._id)
   );
   if (adminIndex === -1) throw new ApiError(401, "Admin not found");
   const removedAdmin = company.adminDept[adminIndex];
   company.adminDept.splice(adminIndex, 1);
   await company.save();
-  const removedAdmindetails = await Admin.deleteOne(removedAdmin._id).select(
-    "-adminPassword"
-  );
+  await Admin.deleteOne(removedAdmin._id);
   return res
     .status(200)
-    .json(
-      new ApiResponse(
-        204,
-        { removedAdmindetails },
-        "Admin Removed Successfully"
-      )
-    );
+    .json(new ApiResponse(204, {}, "Admin Removed Successfully"));
 });
 
 const postNewJob = asyncHandler(async (req, res) => {
@@ -315,15 +335,21 @@ const postNewJob = asyncHandler(async (req, res) => {
   if (!skills && skills.length === 0) {
     throw new ApiError(400, "Skills are required");
   }
+
+  const company = await Company.findById({
+    _id: req.company?._id,
+  });
   const newJob = await Job.create({
     title,
     description,
     location,
-    employmentType,
+    companyName: company.name,
+    companyLogo: company.logo || "",
     skills,
     numberOfVacancies,
     requirements,
     responsibilities,
+    employmentType,
     salaryRange: salaryRange || "Not Disclosed",
     companyRef: req.company?._id,
   });
@@ -339,6 +365,68 @@ const postNewJob = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, newJob, "Job created successfully"));
 });
 
+const updateJob = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+  if (!jobId) throw new ApiError(400, "Job ID is required");
+  const jobDtls = await Job.findById(jobId);
+  if (!jobDtls) throw new ApiError(400, "Job not found");
+  if (!jobDtls.companyRef.equals(req.company?._id))
+    throw new ApiError(400, "Unauthorized");
+  const {
+    title,
+    description,
+    location,
+    employmentType,
+    skills,
+    numberOfVacancies,
+    requirements,
+    responsibilities,
+    salaryRange,
+    status,
+  } = req.body;
+
+  const updates = {};
+  if (title) updates.title = title;
+  if (description) updates.description = description;
+  if (location) updates.location = location;
+  if (employmentType) updates.employmentType = employmentType;
+  if (skills && skills.length > 0) {
+    let newSkills = jobDtls.skills.filter((skill) => {
+      if (!skills.includes(skill)) return skill;
+    });
+    skills = [...skills, ...newSkills];
+    updates.skills = skills;
+  }
+  if (numberOfVacancies) updates.numberOfVacancies = numberOfVacancies;
+  if (requirements) updates.requirements = requirements;
+  if (responsibilities) updates.responsibilities = responsibilities;
+  if (salaryRange) updates.salaryRange = salaryRange;
+  if (status) updates.status = status;
+  if (Object.keys(updates).length == 0) {
+    throw new ApiError(400, "No updates provided");
+  }
+  const updatedJob = await Job.findByIdAndUpdate(jobId, updates, { new: true });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedJob, "Job updated successfully"));
+});
+
+const deleteJob = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+  if (!jobId) throw new ApiError(400, "Job ID is required");
+  const jobDtls = await Job.findById(jobId);
+  if (!jobDtls) throw new ApiError(400, "Job not found");
+  if (!jobDtls.companyRef.equals(req.company?._id))
+    throw new ApiError(400, "Unauthorized");
+  await Job.findByIdAndDelete(jobId);
+  await Company.findByIdAndUpdate(
+    { _id: req.company?._id },
+    { $pull: { jobsPosted: jobId } },
+    { new: true }
+  );
+  return res.status(200).json(new ApiResponse(201, {}, "Deleted Successfully"));
+});
+
 const getApplicantsDetails = asyncHandler(async (req, res) => {
   const { jobId } = req.params;
   if (!jobId) throw new ApiError(400, "Job ID is required");
@@ -346,22 +434,58 @@ const getApplicantsDetails = asyncHandler(async (req, res) => {
   if (!jobDtls) throw new ApiError(400, "Job not found");
   if (jobDtls.companyRef !== req.company?._id)
     throw new ApiError(400, "Unauthorized");
-  const getApplicats = await Application.findById(jobDtls._id).populate();
+  const getApplicats = await Application.aggregate([
+    {
+      $match: {
+        jobId: jobDtls._id,
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "candidateId",
+        foreignField: "_id",
+        as: "candidate",
+      },
+    },
+    {
+      $group: {
+        candidateName: { $first: "$candidate.name" },
+        email: { $first: "$candidate.email" },
+        resume: { $first: "$resumeLink" },
+        currentlyWorkingAt: { $first: "$candidate.currentlyWorkingAt" },
+      },
+    },
+  ]);
   return res
     .status(200)
     .json(new ApiResponse(200, getApplicats, "Total application list"));
 });
 
+const logoutAsCompany = asyncHandler(async (req, res) => {
+  await Company.findByIdAndUpdate(
+    { _id: req.company._id },
+    { $set: { refreshToken: null } }
+  );
+  res.clearCookie("accessToken", COOKIE_OPTIONS);
+  res.clearCookie("refreshToken", COOKIE_OPTIONS);
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Logged out successfully"));
+});
+
 const refreshCompanyAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
+
   if (!incomingRefreshToken) throw new ApiError(400, "Unauthorized");
   try {
     const decodeRefreshToken = jwt.verify(
       incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
-    const company = await User.findById(decodeRefreshToken?._id);
+
+    const company = await Company.findById(decodeRefreshToken?._id);
     if (!company) throw new ApiError(401, "Invalid Refresh Token");
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
       Company,
@@ -390,5 +514,8 @@ export {
   revokeAdminAccess,
   postNewJob,
   getApplicantsDetails,
+  deleteJob,
+  logoutAsCompany,
   refreshCompanyAccessToken,
+  updateJob,
 };
