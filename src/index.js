@@ -3,7 +3,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import path from "path";
 import cors from "cors";
-
+import connectToDB from "./config/mongodb.js";
 const app = express();
 
 app.use(
@@ -29,4 +29,18 @@ app.use("/api/user", userRouter);
 app.use("/api/company", companyRouter);
 app.use("/api/job", jobRouter);
 
-export default app;
+const PORT = process.env.PORT;
+
+connectToDB()
+  .then(() => {
+    const server = app.listen(PORT, () => {
+      console.log(`⚙️ Server is running at port --> ${process.env.PORT}`);
+    });
+    server.on("error", (error) => {
+      console.log("😵‍💫 Error in Server ON --> ", error);
+      throw error;
+    });
+  })
+  .catch((err) => {
+    console.log("😵‍💫 MONGODB Conection Failed in Server.js --> ", err);
+  });
