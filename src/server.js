@@ -1,7 +1,7 @@
 import app from "./index.js";
 import connectToDB from "./config/mongodb.js";
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 connectToDB()
   .then(() => {
