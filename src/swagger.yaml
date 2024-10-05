@@ -470,11 +470,11 @@ paths:
           description: Jobs retrieved successfully
 
   # Admin Endpoints
-  /api/admin/login:
+  /api/company-admin/login:
     post:
       summary: Admin login
       tags:
-        - Admin
+        - Company Admin
       requestBody:
         required: true
         content:
@@ -492,6 +492,130 @@ paths:
           description: Admin logged in successfully
         "401":
           description: Unauthorized
+
+  /api/company-admin/logout:
+    patch:
+      summary: Admin logout
+      tags:
+        - Company Admin
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Admin logged out successfully
+
+  /api/company-admin/refresh-access-token:
+    post:
+      summary: Refresh admin access token
+      tags:
+        - Company Admin
+      responses:
+        "200":
+          description: Access token refreshed successfully
+
+  /api/company-admin/send-email-verification:
+    post:
+      summary: Send verification email to admin
+      tags:
+        - Company Admin
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Verification email sent
+
+  /api/company-admin/verify-otp:
+    patch:
+      summary: Verify admin email with OTP
+      tags:
+        - Company Admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                otp:
+                  type: string
+      responses:
+        "200":
+          description: Email verified successfully
+        "400":
+          description: Bad request
+
+  /api/company-admin/post-new-job:
+    patch:
+      summary: Post a new job as admin
+      tags:
+        - Company Admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                companyId:
+                  type: string
+      responses:
+        "200":
+          description: Job posted successfully
+
+  /api/company-admin/update-job/{jobId}:
+    patch:
+      summary: Update job details as admin
+      tags:
+        - Company Admin
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Job updated successfully
+        "404":
+          description: Job not found
+
+  /api/company-admin/get-applications/{jobId}:
+    post:
+      summary: Get job applications for a specific job
+      tags:
+        - Company Admin
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Applications retrieved successfully
 
 components:
   securitySchemes:
