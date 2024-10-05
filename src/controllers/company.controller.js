@@ -99,8 +99,7 @@ const loginAsCompany = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        { company: loggedInCompany },
-        accessToken,
+        { company: loggedInCompany, accessToken },
         "Logged in successfully"
       )
     );

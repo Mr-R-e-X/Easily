@@ -50,8 +50,7 @@ const loginAsAdmin = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        loggedInAdmin,
-        accessToken,
+        { loggedInAdmin, accessToken },
         "Logged in successfully as a Admin"
       )
     );
