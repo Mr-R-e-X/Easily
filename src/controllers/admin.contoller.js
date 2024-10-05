@@ -48,7 +48,12 @@ const loginAsAdmin = asyncHandler(async (req, res) => {
     .cookie("accessToken", accessToken, COOKIE_OPTIONS)
     .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
     .json(
-      new ApiResponse(200, loggedInAdmin, "Logged in successfully as a Admin")
+      new ApiResponse(
+        200,
+        loggedInAdmin,
+        accessToken,
+        "Logged in successfully as a Admin"
+      )
     );
 });
 

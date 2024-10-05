@@ -7,13 +7,15 @@ info:
 servers:
   - url: https://easily-gvdh.onrender.com
     description: API SERVER
-
 paths:
+  # User Endpoints
   /api/user/register:
     post:
       summary: Register a new user
-      description: Register a user with avatar and coverImage
+      tags:
+        - User
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
@@ -25,23 +27,26 @@ paths:
                 coverImage:
                   type: string
                   format: binary
-                username:
-                  type: string
                 email:
                   type: string
+                  format: email
                 password:
                   type: string
+                username:
+                  type: string
       responses:
-        "200":
+        "201":
           description: User registered successfully
         "400":
-          description: Invalid data
+          description: Bad request
 
   /api/user/login:
     post:
-      summary: User login
-      description: Login with email and password
+      summary: Login a user
+      tags:
+        - User
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -49,21 +54,188 @@ paths:
               properties:
                 email:
                   type: string
+                  format: email
                 password:
                   type: string
       responses:
         "200":
-          description: Login successful
+          description: User logged in successfully
         "401":
           description: Unauthorized
 
+  /api/user/logout:
+    post:
+      summary: Logout a user
+      tags:
+        - User
+      responses:
+        "200":
+          description: User logged out successfully
+
+  /api/user/send-verification-mail:
+    post:
+      summary: Send verification email to user
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Verification email sent
+
+  /api/user/verify-email:
+    patch:
+      summary: Verify email with OTP
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                otp:
+                  type: string
+      responses:
+        "200":
+          description: Email verified successfully
+        "400":
+          description: Bad request
+
+  /api/user/update-profile-details:
+    patch:
+      summary: Update user profile
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                coverImage:
+                  type: string
+                  format: binary
+                resume:
+                  type: string
+                  format: binary
+                username:
+                  type: string
+                email:
+                  type: string
+      responses:
+        "200":
+          description: User profile updated successfully
+        "400":
+          description: Bad request
+
+  /api/user/change-password:
+    patch:
+      summary: Change user password
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                oldPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        "200":
+          description: Password changed successfully
+        "400":
+          description: Bad request
+
+  /api/user/apply:
+    post:
+      summary: Apply for a job
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+      responses:
+        "200":
+          description: Job application submitted successfully
+        "404":
+          description: Job not found
+
+  /api/user/save-job:
+    post:
+      summary: Save a job
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+      responses:
+        "200":
+          description: Job saved successfully
+        "404":
+          description: Job not found
+
+  /api/user/remove-from-saved-list:
+    post:
+      summary: Remove a job from saved list
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+      responses:
+        "200":
+          description: Job removed from saved list
+
+  # Company Endpoints
   /api/company/register:
     post:
       summary: Register a new company
-      description: Register a new company with verification documents
+      tags:
+        - Company
       requestBody:
+        required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
               properties:
@@ -71,27 +243,47 @@ paths:
                   type: string
                 email:
                   type: string
+                  format: email
                 password:
                   type: string
-                logo:
-                  type: string
-                  format: binary
-                companyImages:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
       responses:
-        "200":
+        "201":
           description: Company registered successfully
         "400":
-          description: Invalid data
+          description: Bad request
 
-  /api/job/post-job:
+  /api/company/login:
+    post:
+      summary: Login a company
+      tags:
+        - Company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Company logged in successfully
+        "401":
+          description: Unauthorized
+
+  /api/company/post-job:
     patch:
       summary: Post a new job
-      description: Post a new job with job details
+      tags:
+        - Company
+      security:
+        - bearerAuth: []
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -101,44 +293,205 @@ paths:
                   type: string
                 description:
                   type: string
-                salary:
-                  type: number
-                location:
-                  type: string
                 companyId:
                   type: string
       responses:
         "200":
           description: Job posted successfully
-        "400":
-          description: Invalid data
 
-  /api/job/apply-job/{jobId}:
-    post:
-      summary: Apply for a job
-      description: Apply for a job by job ID
-      parameters:
-        - name: jobId
-          in: path
-          required: true
-          schema:
-            type: string
+  /api/company/update-company-details:
+    put:
+      summary: Update company details
+      tags:
+        - Company
+      security:
+        - bearerAuth: []
       requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                logo:
+                  type: string
+                  format: binary
+                companyImages:
+                  type: string
+                  format: binary
+                companyName:
+                  type: string
+                email:
+                  type: string
+      responses:
+        "200":
+          description: Company details updated successfully
+
+  /api/company/create-admin:
+    patch:
+      summary: Create an admin access for a company
+      tags:
+        - Company
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
               properties:
-                userId:
+                adminEmail:
                   type: string
-                resume:
-                  type: string
-                  format: binary
       responses:
         "200":
-          description: Job application submitted successfully
-        "400":
-          description: Invalid data
+          description: Admin access created successfully
+
+  /api/company/remove-admin:
+    patch:
+      summary: Revoke admin access for a company
+      tags:
+        - Company
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminEmail:
+                  type: string
+      responses:
+        "200":
+          description: Admin access revoked successfully
+
+  /api/company/get-applications:
+    patch:
+      summary: Get job applications for a company
+      tags:
+        - Company
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Applications retrieved successfully
+
+  /api/company/delete-job/{jobId}:
+    delete:
+      summary: Delete a job
+      tags:
+        - Company
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Job deleted successfully
+        "404":
+          description: Job not found
+
+  /api/company/update-job/{jobId}:
+    patch:
+      summary: Update job details
+      tags:
+        - Company
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Job updated successfully
+        "404":
+          description: Job not found
+
+  # Job Endpoints
+  /api/job:
+    get:
+      summary: Get all jobs
+      tags:
+        - Job
+      responses:
+        "200":
+          description: List of jobs retrieved
+
+  /api/job/get-single-job/{jobId}:
+    post:
+      summary: Get a single job by ID
+      tags:
+        - Job
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job details retrieved
+        "404":
+          description: Job not found
+
+  /api/job/get-jobs-by-company/{companyId}:
+    get:
+      summary: Get jobs by company ID
+      tags:
+        - Job
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Jobs retrieved successfully
+
+  # Admin Endpoints
+  /api/admin/login:
+    post:
+      summary: Admin login
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Admin logged in successfully
+        "401":
+          description: Unauthorized
 
 components:
   securitySchemes:
@@ -146,6 +499,3 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-
-security:
-  - bearerAuth: []

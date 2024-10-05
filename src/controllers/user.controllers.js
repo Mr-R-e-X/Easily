@@ -78,7 +78,14 @@ const registerUser = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(201, createdUser, "User registered successfully"));
+    .json(
+      new ApiResponse(
+        201,
+        createdUser,
+        accessToken,
+        "User registered successfully"
+      )
+    );
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -100,7 +107,14 @@ const login = asyncHandler(async (req, res) => {
     .status(200)
     .cookie("accessToken", accessToken, COOKIE_OPTIONS)
     .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
-    .json(new ApiResponse(200, loggedInUser, "User logged in successfully"));
+    .json(
+      new ApiResponse(
+        200,
+        loggedInUser,
+        accessToken,
+        "User logged in successfully"
+      )
+    );
 });
 
 const sendVerificationEmail = asyncHandler(async (req, res) => {

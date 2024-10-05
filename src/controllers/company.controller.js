@@ -70,7 +70,12 @@ const registerCompany = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(201, { company }, "Company account created successfully")
+      new ApiResponse(
+        201,
+        company,
+        accessToken,
+        "Company account created successfully"
+      )
     );
 });
 
@@ -95,6 +100,7 @@ const loginAsCompany = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         { company: loggedInCompany },
+        accessToken,
         "Logged in successfully"
       )
     );
