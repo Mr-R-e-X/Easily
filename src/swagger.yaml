@@ -1,0 +1,151 @@
+openapi: 3.0.0
+info:
+  title: Easily Job Search API
+  description: This is a REST API for the Easily Job Search application where users can search and apply for jobs and companies can post jobs.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local server
+
+paths:
+  /api/user/register:
+    post:
+      summary: Register a new user
+      description: Register a user with avatar and coverImage
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                coverImage:
+                  type: string
+                  format: binary
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: User registered successfully
+        "400":
+          description: Invalid data
+
+  /api/user/login:
+    post:
+      summary: User login
+      description: Login with email and password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful
+        "401":
+          description: Unauthorized
+
+  /api/company/register:
+    post:
+      summary: Register a new company
+      description: Register a new company with verification documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                companyName:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                logo:
+                  type: string
+                  format: binary
+                companyImages:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Company registered successfully
+        "400":
+          description: Invalid data
+
+  /api/job/post-job:
+    patch:
+      summary: Post a new job
+      description: Post a new job with job details
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                salary:
+                  type: number
+                location:
+                  type: string
+                companyId:
+                  type: string
+      responses:
+        "200":
+          description: Job posted successfully
+        "400":
+          description: Invalid data
+
+  /api/job/apply-job/{jobId}:
+    post:
+      summary: Apply for a job
+      description: Apply for a job by job ID
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                resume:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Job application submitted successfully
+        "400":
+          description: Invalid data
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
